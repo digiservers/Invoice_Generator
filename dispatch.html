@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Invoice Generator</title>
+  <!-- html2pdf for PDF export -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    :root{
+      --ink:#0f172a; --muted:#475569; --line:#e2e8f0; --light:#f8fafc; --brand:#0ea5e9;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--light);color:var(--ink);font:14px/1.6 Inter,system-ui,Segoe UI,Roboto,Arial}
+    .wrap{max-width:960px;margin:24px auto;padding:16px;display:grid;gap:16px}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;background:white;border:1px solid var(--line);border-radius:14px;padding:10px 12px;position:sticky;top:0;z-index:5}
+    .group{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button, .btn{appearance:none;border:1px solid var(--line);background:white;color:var(--ink);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+    button.primary{background:var(--brand);color:white;border-color:var(--brand)}
+    button.danger{color:#b91c1c;border-color:#fecaca;background:#fff1f2}
+    input,select,textarea{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;color:inherit;background:white}
+    .invoice-card{background:white;border:1px solid var(--line);border-radius:16px;padding:28px;box-shadow:0 8px 20px rgba(2,6,23,0.05)}
+    .header{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start}
+    .logo-block{display:flex;align-items:center;gap:12px}
+    .logo-block img{width:110px;height:110px;object-fit:contain;border:1px dashed var(--line);border-radius:12px;background:#fff}
+    .meta{display:grid;gap:6px}
+    .badge{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--brand);background:#e0f2fe;padding:4px 8px;border-radius:999px;border:1px solid #bae6fd;cursor:text}
+    .grid-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fcfdff}
+    .card h4{margin:0 0 8px;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+    .table{width:100%;border-collapse:collapse;margin-top:8px}
+    .table th,.table td{border:1px solid var(--line);padding:10px;vertical-align:top}
+    .table thead th{background:#f1f5f9;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+    .table input{width:100%;border:none;background:transparent;padding:0;font:inherit;color:inherit}
+    .table .num{text-align:right}
+    .table .editable{min-height:40px;white-space:pre-wrap;outline:none}
+    .footer-grid{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start;margin-top:16px}
+    .totals{border:1px solid var(--line);border-radius:12px;padding:12px}
+    .totals .row{display:flex;justify-content:space-between;padding:6px 0}
+    .note{border:1px dashed var(--line);padding:12px;border-radius:10px;font-size:13px;color:var(--muted);background:#fafcff}
+    .brand-bar{margin-top:16px;display:flex;justify-content:center;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+    @media print{
+      body{background:white}
+      .toolbar{display:none!important}
+      .wrap{margin:0;padding:0}
+      .invoice-card{border:none;box-shadow:none;border-radius:0}
+      a[href]:after{content:"" !important}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar">
+      <div class="group">
+        <label class="btn" for="logoInput">Upload Company Logo</label>
+        <input id="logoInput" type="file" accept="image/*" style="display:none" />
+        <button id="addRow" type="button">Add Line</button>
+        <button id="removeSelected" type="button" class="danger">Remove Selected</button>
+        <label style="display:flex;align-items:center;gap:6px">Fee %
+          <input id="feePct" type="number" min="0" step="0.1" value="6" style="width:80px"></label>
+      </div>
+      <div class="group">
+        <button id="printBtn" type="button">Print</button>
+        <button id="pdfBtn" type="button" class="primary">Download PDF</button>
+      </div>
+    </div>
+
+    <div id="invoice" class="invoice-card">
+      <!-- Header -->
+      <div class="header">
+        <div class="logo-block">
+          <img id="logo" alt="Company Logo" src="" />
+          <div class="meta">
+            <div style="font-size:28px;font-weight:800;letter-spacing:.5px;">INVOICE <span id="invNo" contenteditable>F-10025</span></div>
+            <div class="badge">ROUTE GROSS FEE (<span id="feeLabel" contenteditable="true">6%</span>)</div>
+            <div style="color:var(--muted)">Issue Date: <span id="issueDate" contenteditable>Aug-22-2025</span></div>
+            <div style="color:var(--muted)">Website: <span contenteditable>https://flscarriers.com/</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h4>Company</h4>
+          <div contenteditable id="companyName" style="font-weight:700">FLS CARRIERS LLC</div>
+          <div contenteditable>1209 MOUNTAIN ROAD PL NE STE N<br/>ALBUQUERQUE, NM 87110</div>
+          <div style="margin-top:6px;color:var(--muted)">Contact: <span contenteditable>ellis@flscarriers.com</span></div>
+        </div>
+      </div>
+
+      <!-- Parties -->
+      <div class="grid-two" style="margin-top:12px;">
+        <div class="card">
+          <h4>Issued To</h4>
+          <div contenteditable style="font-weight:700">WANDA SMITH</div>
+          <div contenteditable>The Rapid Transport LLC</div>
+        </div>
+        <div class="card">
+          <h4>Payment Info</h4>
+          <div contenteditable>Business Zelle<br>Title: The Rapid Transport LLC<br>Zelle id: rapidmoverstransport@gmail.com</div>
+        </div>
+      </div>
+
+      <!-- Line items -->
+      <table class="table" id="itemsTable">
+        <thead>
+          <tr>
+            <th style="width:24px"></th>
+            <th>Description (Route)</th>
+            <th style="width:140px">Pickup Date</th>
+            <th style="width:120px">PO #</th>
+            <th style="width:70px">Qty</th>
+            <th style="width:140px">Amount ($)</th>
+            <th style="width:120px">Fee ($)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num"><input type="checkbox"/></td>
+            <td><div class="editable" contenteditable="true">Orlando to Kansas City, MO</div></td>
+            <td><input type="text" value="15/08/2025"/></td>
+            <td><input type="text" value="33415412"/></td>
+            <td class="num"><input type="number" min="1" value="1"/></td>
+            <td class="num"><input type="number" min="0" step="0.01" value="1250.00"/></td>
+            <td class="num fee-cell">0.00</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Totals & note -->
+      <div class="footer-grid">
+        <div class="note" contenteditable>
+          <strong>Note:</strong> This company account is maintained by FLS Carriers LLC authorized company accountant.
+        </div>
+        <div class="totals">
+          <div class="row"><span>Subtotal</span><span id="subtotal">$0.00</span></div>
+          <div class="row"><span>Fee (<span id="feePctLabel">6%</span>)</span><span id="feeTotal">$0.00</span></div>
+          <div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;"><strong>Grand Total</strong><strong id="grandTotal">$0.00</strong></div>
+        </div>
+      </div>
+
+      <div class="brand-bar">THANK YOU</div>
+    </div>
+  </div>
+
+  <script>
+    const el = (s, ctx=document) => ctx.querySelector(s);
+    const els = (s, ctx=document) => Array.from(ctx.querySelectorAll(s));
+    const logoInput = el('#logoInput');
+    const logo = el('#logo');
+    const table = el('#itemsTable');
+    const feePctInput = el('#feePct');
+    const feeLabel = el('#feeLabel');
+    const feePctLabel = el('#feePctLabel');
+
+    function currency(n){
+      const v = Number(n||0);
+      return v.toLocaleString(undefined, { style:'currency', currency:'USD' });
+    }
+
+    function recalc(){
+      const feePct = parseFloat(feePctInput.value||0);
+      let subtotal = 0;
+      els('tbody tr', table).forEach(row=>{
+        const qty = parseFloat(el('td:nth-child(5) input', row).value || 0);
+        const amt = parseFloat(el('td:nth-child(6) input', row).value || 0);
+        const feeCell = el('.fee-cell', row);
+        const lineTotal = qty * amt;
+        const fee = lineTotal * (feePct/100);
+        feeCell.textContent = fee.toFixed(2);
+        subtotal += lineTotal;
+      });
+      const feeSum = subtotal * (feePct/100);
+      el('#subtotal').textContent = currency(subtotal);
+      el('#feeTotal').textContent = currency(feeSum);
+      // Grand total = ONLY DISPATCH FEE
+      el('#grandTotal').textContent = currency(feeSum);
+      feeLabel.textContent = feePct.toFixed(2).replace(/\.00$/,'') + '%';
+      feePctLabel.textContent = feeLabel.textContent;
+    }
+
+    function attachRowListeners(context=document){
+      els('input, .editable', context).forEach(i=>{
+        i.addEventListener('input', recalc);
+        i.addEventListener('change', recalc);
+      });
+    }
+
+    function addRow(){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="num"><input type="checkbox"/></td>
+        <td><div class="editable" contenteditable="true" style="min-height:40px;white-space:pre-wrap;">Route description</div></td>
+        <td><input type="text" placeholder="DD/MM/YYYY"/></td>
+        <td><input type="text" placeholder="PO#"/></td>
+        <td class="num"><input type="number" min="1" value="1"/></td>
+        <td class="num"><input type="number" min="0" step="0.01" value="0.00"/></td>
+        <td class="num fee-cell">0.00</td>`;
+      el('tbody', table).appendChild(tr);
+      attachRowListeners(tr);
+      recalc();
+      tr.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+
+    function removeSelected(){
+      els('tbody tr', table).forEach(row=>{
+        const ck = el('input[type="checkbox"]', row);
+        if(ck && ck.checked){ row.remove(); }
+      });
+      recalc();
+    }
+
+    // Logo upload
+    logoInput.addEventListener('change', (e)=>{
+      const file = e.target.files?.[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => { logo.src = ev.target.result; };
+      reader.readAsDataURL(file);
+    });
+
+    // Badge editing → sync to input
+    feeLabel.addEventListener('input', ()=>{
+      const val = feeLabel.textContent.replace('%','').trim();
+      const num = parseFloat(val);
+      if(!isNaN(num)){
+        feePctInput.value = num;
+        recalc();
+      }
+    });
+
+    // Toolbar actions
+    el('#addRow').addEventListener('click', addRow);
+    el('#removeSelected').addEventListener('click', removeSelected);
+    el('#printBtn').addEventListener('click', ()=> window.print());
+    el('#pdfBtn').addEventListener('click', ()=>{
+      const invoice = document.getElementById('invoice');
+      const opt = {
+        margin:[10,10,10,10],
+        filename:`Invoice_${el('#invNo').textContent.trim()||'Draft'}.pdf`,
+        image:{ type:'jpeg', quality:0.98 },
+        html2canvas:{ scale:2, useCORS:true, letterRendering:true },
+        jsPDF:{ unit:'mm', format:'a4', orientation:'portrait' }
+      };
+      html2pdf().set(opt).from(invoice).save();
+    });
+
+    feePctInput.addEventListener('input', recalc);
+
+    attachRowListeners();
+    recalc();
+  </script>
+</body>
+</html>
